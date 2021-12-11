@@ -2,10 +2,8 @@ import decimal
 import sys
 from collections import deque
 from queue import Queue
-
 import pyautogui
 import time
-
 import pytesseract
 import win32api, win32con
 import keyboard
