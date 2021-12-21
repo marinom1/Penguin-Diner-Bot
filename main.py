@@ -1,10 +1,6 @@
-import decimal
-import sys
 from collections import deque
-from queue import Queue
 import pyautogui
 import time
-import pytesseract
 import win32api, win32con
 import keyboard
 import pytesseract as tess
@@ -18,22 +14,41 @@ tess.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 
 def main():
+    if pyautogui.pixel(1342, 109) == (254, 203, 0):
+        print("We are at start screen")
+        start_game()
+        wait_until_round_starts()
+
+        if pyautogui.pixel(186, 73)[0] == 151:
+            print("in middle of round on stage 1")
+            play_stage_1()
+            play_stage_2()
+            play_stage_3()
+
+        elif pyautogui.pixel(1342, 69) == (255, 155, 8):
+            print("We are in middle of round on stage 2")
+            play_stage_2()
+            play_stage_3()
+
+ #       elif pyautogui.pixel(1342, 69) == (201, 186, 177):
+        else:
+            print("We are in middle of round on stage 3")
+            play_stage_3()
+
     if pyautogui.pixel(186, 73)[0] == 151:
         print("in middle of round on stage 1")
         play_stage_1()
         play_stage_2()
-        #play_stage_3()
+        play_stage_3()
 
     elif pyautogui.pixel(1342, 69) == (255, 155, 8):
         print("We are in middle of round on stage 2")
         play_stage_2()
-        #play_stage_3()
+        play_stage_3()
+
     else:
-        print("We are at start screen")
-        start_game()
-        play_stage_1()
-        play_stage_2()
-        #play_stage_3()
+        print("We are in middle of round on stage 3")
+        play_stage_3()
 
 
 def play_stage_1(): #game playing function
@@ -60,7 +75,7 @@ def play_stage_1(): #game playing function
             click_back()
             wait_until_can_click_start_next_day()
             click_start_next_day()
-            time.sleep(5)
+            wait_until_round_starts()
             if pyautogui.pixel(1715, 52) == (255, 255, 255):
                 print("Detected that we're moving on to new stage")
                 press_next()
@@ -101,7 +116,7 @@ def play_stage_2():
             buy_upgrades()
             click_back()
             click_start_next_day()
-            time.sleep(5)
+            wait_until_round_starts()
             if pyautogui.pixel(1715, 52) == (255, 255, 255):
                 print("Detected that we're moving on to new stage")
                 press_next()
@@ -115,6 +130,48 @@ def play_stage_2():
             current_balance_image = pyautogui.screenshot('zero_dollars.png', region=(1613, 941, 117, 37))
             round_is_going = True
 
+
+def play_stage_3():
+    table_tracker = [True, True, True, True, True]  # True means table is available
+    table_ordered_tracker = [False, False, False, False, False]
+    order_queue = deque([])
+    round_is_going = True
+    current_balance_image = pyautogui.screenshot('zero_dollars.png', region=(1613, 941, 117, 37))
+
+    while round_is_going and not keyboard.is_pressed('q'):
+        penguins_are_waiting = check_if_penguin_waiting()
+        if penguins_are_waiting and any(table_tracker):
+            table_tracker = seat_waiting_penguin(table_tracker)
+        order_queue = check_if_food_plate_ready(order_queue)
+        table_ordered_tracker, order_queue = check_if_any_tables_ready_to_order(table_ordered_tracker, order_queue,
+                                                                                table_tracker)
+
+        table_tracker, table_ordered_tracker, current_balance = check_if_money_on_any_tables(table_tracker,
+                                                                                             table_ordered_tracker,
+                                                                                             current_balance_image)
+
+        if pyautogui.pixel(1732, 515) == (191, 191, 191):  # If end of round
+            round_is_going = False
+            print("End of round")
+            wait_until_can_click_start_next_day()
+            click_upgrades()
+            buy_upgrades()
+            click_back()
+            click_start_next_day()
+            wait_until_round_starts()
+            if pyautogui.pixel(1715, 52) == (255, 255, 255):
+                print("Detected that we're moving on to new stage")
+                press_next()
+                time.sleep(5)
+                break
+            print("Starting next round")
+            # Reset variables for new round
+            table_tracker = [True, True, True, True, True]  # True means table is available
+            table_ordered_tracker = [False, False, False, False, False]
+            order_queue = deque([])
+            current_balance_image = pyautogui.screenshot('zero_dollars.png', region=(1613, 941, 117, 37))
+            round_is_going = True
+
 def start_game():
     press_play()
     if pyautogui.pixel(849,442)[0] == 227:
@@ -122,7 +179,9 @@ def start_game():
         time.sleep(2)
     else:
         press_next()
+        time.sleep(.3)
         press_skip()
+        time.sleep(.3)
         press_next()
         time.sleep(2)
 
@@ -134,7 +193,6 @@ def press_play():
 def press_next():
     win32api.SetCursorPos((1625, 1009))
     leftClick()
-    time.sleep(.3)
 
 def press_skip():
     win32api.SetCursorPos((950, 1014))
@@ -174,7 +232,8 @@ def click_penguin():
     leftClick()
 
 def check_if_penguin_waiting():
-    if pyautogui.pixel(480, 475) == (197, 226, 228) or pyautogui.pixel(480, 475) == (233, 243, 245):
+    #  if background color, last or checks for purple tie on penguin
+    if pyautogui.pixel(480, 475) == (197, 226, 228) or pyautogui.pixel(480, 475) == (233, 243, 245) or pyautogui.pixel(480, 475) == (234, 243, 246) or pyautogui.pixel(480, 475) == (200, 227, 234) or pyautogui.pixel(480, 475) == (201, 121, 177):
         return False
     else:
         return True
@@ -186,29 +245,28 @@ def seat_waiting_penguin(table_tracker):
 
     if table_tracker[3] is True:
         click_table(4)
-        wait_until_penguin_sits(4)
+#        wait_until_penguin_sits(4)
         table_tracker[3] = False
     elif table_tracker[4] is True:
         click_table(5)
-        wait_until_penguin_sits(5)
+        #      wait_until_penguin_sits(5)
         table_tracker[4] = False
     elif table_tracker[2] is True:
         click_table(3)
-        wait_until_penguin_sits(3)
+        #       wait_until_penguin_sits(3)
         table_tracker[2] = False
     elif table_tracker[0] is True:
         click_table(1)
-        wait_until_penguin_sits(1)
+        #       wait_until_penguin_sits(1)
         table_tracker[0] = False
     elif table_tracker[1] is True:
         click_table(2)
-        wait_until_penguin_sits(2)
+        #     wait_until_penguin_sits(2)
         table_tracker[1] = False
-
-
 
     print("Updated Table Tracker: ", table_tracker)
     return table_tracker
+
 
 def check_if_any_tables_ready_to_order(table_ordered_tracker, order_queue, table_tracker):
     if not table_ordered_tracker[0] and pyautogui.pixel(923, 250) == (129, 129, 129) and table_tracker[0] == False:
@@ -282,15 +340,47 @@ def check_if_any_tables_ready_to_order(table_ordered_tracker, order_queue, table
 
 
 def check_if_food_plate_ready(order_queue):
+    #  check if game over before doing anything here, sometimes game would crash here when round is over
+    if pyautogui.pixel(1732, 515) == (191, 191, 191):
+        return
+
     # if need to get 2 plates at once because 2 penguins are at 1 table
     if len(order_queue) > 1 and order_queue[0] == order_queue[1]:
-        print("Detected that I will need to get 2 plates")
-        if pyautogui.pixel(929, 1023)[0] != 255 and not pyautogui.pixel(929, 1023) == (140, 140, 140):
+        # If plate 1 exists and is not gray?
+        if pyautogui.pixel(929, 1023)[0] != 255 and pyautogui.pixel(769, 1042)[0] != 255 and not pyautogui.pixel(929, 1023) == (140, 140, 140):
             print("Going to take 2 plates at once")
             click_plate(1)
-            wait_until_plate_picked_up(1)
+            time.sleep(.15)
             click_plate(2)
             wait_until_plate_picked_up(2)
+            print("clicking table", order_queue[0], " because I have both their foods in my hand")
+            current_table = order_queue[0]
+            click_table(order_queue.popleft())
+            wait_until_food_at_table(current_table)
+            order_queue.popleft()
+            print("Updated order_queue: ", order_queue)
+            return order_queue
+        # else if plate 2 exists
+        elif pyautogui.pixel(769, 1042)[0] != 255 and pyautogui.pixel(612, 1046)[0] != 255 and not pyautogui.pixel(769, 1042) == (140, 140, 140):
+            print("Going to take 2 plates at once")
+            click_plate(2)
+            time.sleep(.02)
+            click_plate(3)
+            wait_until_plate_picked_up(3)
+            print("clicking table", order_queue[0], " because I have both their foods in my hand")
+            current_table = order_queue[0]
+            click_table(order_queue.popleft())
+            wait_until_food_at_table(current_table)
+            order_queue.popleft()
+            print("Updated order_queue: ", order_queue)
+            return order_queue
+        # else if plate 3 exists
+        elif pyautogui.pixel(612, 1046)[0] != 255 and not pyautogui.pixel(612, 1046) == (140, 140, 140):
+            print("Going to take 2 plates at once, plate 3 and 4")
+            click_plate(3)
+            time.sleep(.09)
+            click_plate(4)
+            wait_until_plate_picked_up(4)
             print("clicking table", order_queue[0], " because I have both their foods in my hand")
             current_table = order_queue[0]
             click_table(order_queue.popleft())
@@ -319,17 +409,63 @@ def check_if_food_plate_ready(order_queue):
         click_table(order_queue.popleft())
         wait_until_food_at_table(current_table)
         print("Updated order_queue: ", order_queue)
-
+        return order_queue
+    # if plate 3 is ready
+    elif pyautogui.pixel(612, 1046)[0] != 255:
+        click_plate(3)
+        wait_until_plate_picked_up(3)
+        print("clicking table", order_queue[0], " because I have their food in my hand")
+        current_table = order_queue[0]
+        click_table(order_queue.popleft())
+        wait_until_food_at_table(current_table)
+        print("Updated order_queue: ", order_queue)
+        return order_queue
+    # if plate 4 is ready
+    elif pyautogui.pixel(448, 1046)[0] != 255:
+        click_plate(4)
+        wait_until_plate_picked_up(4)
+        print("clicking table", order_queue[0], " because I have their food in my hand")
+        current_table = order_queue[0]
+        click_table(order_queue.popleft())
+        wait_until_food_at_table(current_table)
+        print("Updated order_queue: ", order_queue)
+        return order_queue
+    # if plate 5 is ready
+    elif pyautogui.pixel(286, 1046)[0] != 255:
+        click_plate(5)
+        wait_until_plate_picked_up(5)
+        print("clicking table", order_queue[0], " because I have their food in my hand")
+        current_table = order_queue[0]
+        click_table(order_queue.popleft())
+        wait_until_food_at_table(current_table)
+        print("Updated order_queue: ", order_queue)
         return order_queue
     return order_queue
 
 def click_plate(plate_number):
     if plate_number == 1:
         win32api.SetCursorPos((929, 1023))
+        time.sleep(0.1)
         leftClick()
 
-    if plate_number == 2:
+    elif plate_number == 2:
         win32api.SetCursorPos((769, 1023))
+        time.sleep(0.02)
+        leftClick()
+
+    elif plate_number == 3:
+        win32api.SetCursorPos((613, 1023))
+        time.sleep(0.02)
+        leftClick()
+
+    elif plate_number == 4:
+        win32api.SetCursorPos((443, 1023))
+        time.sleep(0.02)
+        leftClick()
+
+    elif plate_number == 5:
+        win32api.SetCursorPos((283, 1023))
+        time.sleep(0.02)
         leftClick()
 
 
@@ -389,21 +525,34 @@ def wait_until_penguin_sits(table_number):
 
 
 def wait_until_plate_picked_up(plate_number):
-    if plate_number == 1:
-        while not pyautogui.pixel(930, 1030) == (255, 255, 255):
-            pass
-
-    if plate_number == 2:
-        while not pyautogui.pixel(768, 1030) == (255, 255, 255):
-            pass
+    return
+    # if plate_number == 1:
+    #     while not pyautogui.pixel(930, 1030) == (255, 255, 255):
+    #         pass
+    #
+    # elif plate_number == 2:
+    #     while not pyautogui.pixel(768, 1030) == (255, 255, 255):
+    #         pass
+    #
+    # elif plate_number == 3:
+    #     while not pyautogui.pixel(606, 1030) == (255, 255, 255):
+    #         pass
+    #
+    # elif plate_number == 4:
+    #     while not pyautogui.pixel(444, 1030) == (255, 255, 255):
+    #         pass
+    #
+    # elif plate_number == 5:
+    #     while not pyautogui.pixel(282, 1030) == (255, 255, 255):
+    #         pass
 
 def wait_until_food_at_table(table_number):
-    # or statement in tables 1 and 2 because the stage background might affect it
+   # or statement in tables 1 and 2 because the stage background might affect it
     if table_number == 1:
-        while pyautogui.pixel(838, 229) == (16, 18, 15) or pyautogui.pixel(838, 229) == (13, 16, 14):
+        while pyautogui.pixel(838, 229) == (16, 18, 15) or pyautogui.pixel(838, 229) == (13, 16, 14) or pyautogui.pixel(838, 229) == (14, 16, 14):
             pass
     elif table_number == 2:
-        while pyautogui.pixel(1485, 229) == (15, 16, 14) or pyautogui.pixel(1485, 229) == (12, 14, 12):
+        while pyautogui.pixel(1485, 229) == (15, 16, 14) or pyautogui.pixel(1485, 229) == (12, 14, 12) or pyautogui.pixel(1485, 229) == (7, 10, 11) or pyautogui.pixel(1485, 229) ==(8, 11, 12):
             pass
     elif table_number == 3:
         while pyautogui.pixel(1143, 433) == (255, 255, 255):
@@ -454,23 +603,19 @@ def check_if_balance_changed(current_balance_image):
             new_balance_image = pyautogui.screenshot(region=(1613, 941, 117, 37))
             return new_balance_image
 
+
 def wait_until_can_click_start_next_day():
-    # TODO
-    time.sleep(5)
-
-def check_current_stage():
-
-
-    if pyautogui.pixel(1340, 70) == (255, 154, 25):
-        current_stage = 2
-
-    return current_stage
+    while True:
+        if pyautogui.pixel(740, 778) == (221, 42, 36):
+            return
+        pass
 
 
 def click_upgrades():
     win32api.SetCursorPos((1111, 777))
     leftClick()
     time.sleep(.3)
+
 
 def buy_upgrades():
     #Buy all upgrades starting with left bottom, going up, then starting middle bottom, repeat
@@ -515,5 +660,14 @@ def click_back():
     time.sleep(.05)
     leftClick()
     time.sleep(.5)
+
+
+def wait_until_round_starts():
+    while True:
+        if pyautogui.pixel(159, 656) == (255, 204, 7) or pyautogui.pixel(159, 656) == (255, 204, 8):
+            time.sleep(1)
+            return
+        else:
+            pass
 
 main()
